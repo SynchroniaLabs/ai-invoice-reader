@@ -6,7 +6,7 @@ First, let's get our workshop in order. A clean setup prevents headaches later.
 2.  **Virtual Environment:** In your terminal, navigate into `ai-invoice-reader` and create a virtual environment: `python -m venv venv`. Activate it.
 3.  **Install Our Tools:** With the environment active, run this command to install everything we need:
     ```bash
-    pip install pysimplegui pymupdf pandas pyperclip
+    pip install FreeSimpleGUI PyMuPDF pandas pyperclip
     ```
       * **`pyperclip`** is a neat little library that will let us copy the final data to the clipboard, which is perfect for our "Copy to Excel" button.
 

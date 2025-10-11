@@ -5,7 +5,15 @@ def extract_invoice_data(pdf_path: str) -> dict:
     """
     Extracts invoice data from a PDF file.
     """
-    pass
+    text = extract_text(pdf_path)
+
+    result = {
+        'vendor': find_vendor(text),
+        'date': find_date(text),
+        'total': find_total(text)
+    }
+
+    return result
 
 def extract_text(pdf_path: str) -> str:
     """

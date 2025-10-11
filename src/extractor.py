@@ -116,3 +116,80 @@ def find_total(text: str) -> str:
     # Return the highest amount found (typically the grand total)
     total = max(cleaned_numbers)
     return f"{total:.2f}"
+
+def find_date(text: str) -> str:
+    """
+    Finds the invoice date in the extracted text.
+    
+    Searches for common date formats and prioritizes dates found near
+    "date" keywords (invoice date, date de facturation, etc.).
+    
+    Args:
+        text: The full text of the invoice.
+        
+    Returns:
+        The date as a string or 'N/A' if not found.
+    """
+    # Common date patterns to match various formats
+    date_patterns = [
+        # DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (most common in Europe)
+        r'\b(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4})\b',
+        # YYYY-MM-DD, YYYY/MM/DD (ISO format)
+        r'\b(\d{4}[/.\-]\d{1,2}[/.\-]\d{1,2})\b',
+        # Month DD, YYYY (e.g., "Sep 30, 2025", "January 15, 2025")
+        r'\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4})\b',
+        # DD Month YYYY (e.g., "27 août 2025", "15 January 2025")
+        r'\b(\d{1,2}\s+(?:[A-Za-zéèêàûô]+\.?)\s+\d{4})\b',
+    ]
+    
+    found_dates = []
+    
+    # Keywords that typically indicate the invoice date
+    date_keywords = [
+        r'invoice\s+date\s*:?\s*',
+        r"date\s+(?:de\s+)?(?:facturation|d['']émission)\s*:?\s*",  # French
+        r'date\s*:?\s*',
+        r'dated?\s*:?\s*',
+        r'facture\s+du\s*:?\s*',  # French: invoice from
+    ]
+    
+    # First priority: Look for dates near "date" keywords
+    for keyword in date_keywords:
+        for date_pattern in date_patterns:
+            # Search for keyword followed by date (within 30 characters)
+            pattern = keyword + r'.{0,30}?' + date_pattern
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                # Extract the date (last capturing group)
+                date_str = match.group(match.lastindex)
+                found_dates.append(('priority', date_str))
+    
+    # Second priority: Look at lines containing "date" keywords
+    lines = text.split('\n')
+    for i, line in enumerate(lines):
+        if re.search(r'\b(?:invoice\s+)?date|facturation|émission', line, re.IGNORECASE):
+            # Check this line and next 2 lines
+            for j in range(i, min(i + 3, len(lines))):
+                for date_pattern in date_patterns:
+                    dates = re.findall(date_pattern, lines[j], re.IGNORECASE)
+                    for date_str in dates:
+                        found_dates.append(('secondary', date_str))
+    
+    # Third priority: Look for dates anywhere in first 500 characters
+    # (invoice dates are usually at the top)
+    if not found_dates:
+        for date_pattern in date_patterns:
+            matches = re.finditer(date_pattern, text[:500], re.IGNORECASE)
+            for match in matches:
+                date_str = match.group(1)
+                found_dates.append(('tertiary', date_str))
+    
+    if not found_dates:
+        return 'N/A'
+    
+    # Return the highest priority date found
+    # Priority order: priority > secondary > tertiary
+    priority_order = {'priority': 0, 'secondary': 1, 'tertiary': 2}
+    found_dates.sort(key=lambda x: priority_order[x[0]])
+    
+    return found_dates[0][1]

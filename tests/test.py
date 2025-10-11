@@ -9,6 +9,8 @@ if __name__ == "__main__":
     
     if func == "find_total":
         print(find_total(extract_text(arg)))
+    elif func == "find_date":
+        print(find_date(extract_text(arg)))
     elif func == "extract_text":
         print(extract_text(arg))
     elif func == "extract_invoice_data":

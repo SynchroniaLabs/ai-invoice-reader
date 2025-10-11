@@ -193,3 +193,71 @@ def find_date(text: str) -> str:
     found_dates.sort(key=lambda x: priority_order[x[0]])
     
     return found_dates[0][1]
+
+def find_vendor(text: str) -> str:
+    """
+    Finds the vendor/company name in the extracted text.
+    
+    Looks for company names using legal entity indicators (LLC, SARL, Inc, etc.)
+    and other patterns typically associated with vendor information.
+    
+    Args:
+        text: The full text of the invoice.
+        
+    Returns:
+        The vendor name as a string or 'N/A' if not found.
+    """
+    found_vendors = []
+    lines = text.split('\n')
+    
+    # Priority 1: Look for company names with legal entity indicators
+    # Process line by line to avoid cross-line matches
+    entity_pattern = r'\b([A-Z][A-Za-z0-9&\-\.]+(?:\s+[A-Z][A-Za-z0-9&\-\.]+){0,4}\s+(?:SARL|LLC|Inc\.?|Ltd\.?|Limited|B\.V\.?|GmbH|S\.A\.?|SE|Corporation|Corp\.?))\b'
+    
+    for line in lines:
+        match = re.search(entity_pattern, line)
+        if match:
+            vendor = match.group(1).strip()
+            # Filter out very short matches, common false positives, and lines with too many words
+            word_count = len(vendor.split())
+            if (len(vendor) > 5 and 
+                word_count <= 6 and 
+                not re.match(r'^\d', vendor) and
+                not re.search(r'\b(Total|Invoice|Billing|Payment|Service|Description)\b', vendor, re.IGNORECASE)):
+                found_vendors.append(('high_priority', vendor))
+    
+    # Priority 2: Look for lines near "émetteur" (issuer) or "from" keywords
+    for i, line in enumerate(lines):
+        if re.search(r'\b(?:émetteur|from|seller|vendor|billed?\s+by)\b', line, re.IGNORECASE):
+            # Check next 2 lines for potential vendor names
+            for j in range(i + 1, min(i + 3, len(lines))):
+                vendor = lines[j].strip()
+                # Look for capitalized names (at least 2 words or one word with 5+ chars)
+                if vendor and len(vendor) > 4 and vendor[0].isupper():
+                    # Exclude lines with numbers, dates, or common keywords
+                    if not re.search(r'^\d|date|facture|invoice|total|address|street|road', vendor, re.IGNORECASE):
+                        found_vendors.append(('medium_priority', vendor))
+    
+    # Priority 3: Look in first 30 lines for distinctive company names
+    # (vendors are usually at the top)
+    if not found_vendors:
+        for i, line in enumerate(lines[:30]):
+            vendor = line.strip()
+            # Look for short, capitalized lines that might be company names
+            # Must be 3-50 characters, start with uppercase, minimal numbers
+            if (3 < len(vendor) < 50 and 
+                vendor[0].isupper() and 
+                vendor.replace(' ', '').replace('-', '').replace('&', '').isalpha() and
+                not re.search(r'\b(invoice|facture|page|date|total|billing|account|details|summary|description|quantity|quantité|prix|price|tax|payment|balance|désignation|destinataire|émetteur|numéro|number|amount)\b', vendor, re.IGNORECASE)):
+                # Bonus: if it's ALL CAPS or Title Case, more likely to be a company
+                if vendor.isupper() or vendor.istitle():
+                    found_vendors.append(('low_priority', vendor))
+    
+    if not found_vendors:
+        return 'N/A'
+    
+    # Sort by priority and return the first one
+    priority_order = {'high_priority': 0, 'medium_priority': 1, 'low_priority': 2}
+    found_vendors.sort(key=lambda x: priority_order[x[0]])
+    
+    return found_vendors[0][1]
